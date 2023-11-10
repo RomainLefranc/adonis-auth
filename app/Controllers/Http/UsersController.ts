@@ -8,11 +8,23 @@ import ForgotPasswordUserValidator from "App/Validators/ForgotPasswordUserValida
 import ResetPasswordToken from "App/Models/ResetPasswordToken";
 import crypto from "crypto";
 import { DateTime } from "luxon";
+import Mail from "@ioc:Adonis/Addons/Mail";
 
 export default class UsersController {
   public async register({ request, response }: HttpContextContract) {
     const payload = await request.validate(RegisterUserValidator);
     const user = await User.create(payload);
+
+    await Mail.use("smtp").sendLater(
+      (message) => {
+        message.subject("Verify your account!");
+        message.to(user.email);
+      },
+      {
+        oTags: ["signup"],
+      }
+    );
+
     return {
       user,
     };
@@ -125,6 +137,16 @@ export default class UsersController {
         userId: user.id,
         expiresAt: expirationDate,
       });
+
+      await Mail.use("smtp").sendLater(
+        (message) => {
+          message.subject("Reset your pasword!");
+          message.to(user.email);
+        },
+        {
+          oTags: ["signup"],
+        }
+      );
     }
     return response.accepted(
       "If a user with this email is registered, you will receive a password recovery email"

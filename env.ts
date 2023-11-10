@@ -33,4 +33,8 @@ export default Env.rules({
   GOOGLE_CLIENT_ID: Env.schema.string(),
   GOOGLE_CLIENT_SECRET: Env.schema.string(),
   GOOGLE_CALLBACK: Env.schema.string(),
+  SMTP_HOST: Env.schema.string({ format: "host" }),
+  SMTP_PORT: Env.schema.number(),
+  SMTP_USERNAME: Env.schema.string(),
+  SMTP_PASSWORD: Env.schema.string(),
 });

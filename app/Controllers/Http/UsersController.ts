@@ -55,18 +55,15 @@ export default class UsersController {
     }
 
     user.isVerified = true;
-    user.save();
+    user.verificationToken = null;
+    await user.save();
 
-    return {
-      isVerified: user.isVerified,
-    };
+    return response.accepted("User is now verified");
   }
 
   public async logout({ auth, response }: HttpContextContract) {
     await auth.use("api").revoke();
-    return {
-      revoked: true,
-    };
+    return response.accepted("User is now disconnected");
   }
 
   public async resetPassword({

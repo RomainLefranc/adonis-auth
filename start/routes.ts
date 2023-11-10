@@ -20,27 +20,10 @@
 
 import Route from "@ioc:Adonis/Core/Route";
 
-Route.post("/register", "UsersController.register");
+import authRoutes from "./routes/api/auth";
 
-Route.get("/verify/:verificationToken", "UsersController.verify").where(
-  "verificationToken",
-  /^[a-z0-9_-]+$/
-);
-
-Route.post("/login", "UsersController.login");
-
-Route.post("/forgot-password", "UsersController.forgotPassword");
-
-Route.post(
-  "/reset-password/:resetPasswordToken",
-  "UsersController.resetPassword"
-).where("resetPasswordToken", /^[a-z0-9_-]+$/);
-
-// protected routes
 Route.group(() => {
-  Route.post("/logout", "UsersController.logout");
-}).middleware(["auth:api"]);
-
-Route.get("/:providerName/redirect", "UsersController.providerRedirect");
-
-Route.get("/:providerName/callback", "UsersController.providerCallback");
+  authRoutes();
+})
+  .prefix("api")
+  .as("api");

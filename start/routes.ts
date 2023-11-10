@@ -40,3 +40,7 @@ Route.post(
 Route.group(() => {
   Route.post("/logout", "UsersController.logout");
 }).middleware(["auth:api"]);
+
+Route.get("/:providerName/redirect", "UsersController.providerRedirect");
+
+Route.get("/:providerName/callback", "UsersController.providerCallback");

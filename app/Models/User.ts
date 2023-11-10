@@ -8,6 +8,7 @@ import {
   HasMany,
 } from "@ioc:Adonis/Lucid/Orm";
 import ResetPasswordToken from "./ResetPasswordToken";
+import UserSocial from "./UserSocial";
 
 export default class User extends BaseModel {
   @column({ isPrimary: true })
@@ -23,7 +24,7 @@ export default class User extends BaseModel {
   public rememberMeToken: string | null;
 
   @column()
-  public isVerified: boolean;
+  public isEmailVerified: boolean;
 
   @column()
   public verificationToken: string | null;
@@ -36,6 +37,9 @@ export default class User extends BaseModel {
 
   @hasMany(() => ResetPasswordToken)
   public resetPasswordTokens: HasMany<typeof ResetPasswordToken>;
+
+  @hasMany(() => UserSocial)
+  public socials: HasMany<typeof UserSocial>;
 
   @beforeSave()
   public static async hashPassword(user: User) {

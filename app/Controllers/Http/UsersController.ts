@@ -12,9 +12,7 @@ import { DateTime } from "luxon";
 export default class UsersController {
   public async register({ request, response }: HttpContextContract) {
     const payload = await request.validate(RegisterUserValidator);
-
     const user = await User.create(payload);
-
     return {
       user,
     };
@@ -31,7 +29,7 @@ export default class UsersController {
       return response.unauthorized("Email or password invalid");
     }
 
-    if (!user.isVerified) {
+    if (!user.isEmailVerified) {
       return response.unauthorized("User is not verified");
     }
 
@@ -44,7 +42,7 @@ export default class UsersController {
   }
 
   public async verify({ params, response }: HttpContextContract) {
-    const verificationToken = params.verificationToken;
+    const { verificationToken } = params;
 
     const user = await User.query()
       .where("verificationToken", verificationToken)
@@ -54,7 +52,7 @@ export default class UsersController {
       return response.unauthorized("Verification token invalid");
     }
 
-    user.isVerified = true;
+    user.isEmailVerified = true;
     user.verificationToken = null;
     await user.save();
 
@@ -72,7 +70,7 @@ export default class UsersController {
     response,
   }: HttpContextContract) {
     const payload = await request.validate(ResetPasswordUserValidator);
-    const resetPasswordToken = params.resetPasswordToken;
+    const { resetPasswordToken } = params;
 
     const { password } = payload;
 
@@ -108,7 +106,7 @@ export default class UsersController {
       );
     }
 
-    if (!user.isVerified) {
+    if (!user.isEmailVerified) {
       return response.unauthorized("User is not verified");
     }
 
@@ -131,5 +129,53 @@ export default class UsersController {
     return response.accepted(
       "If a user with this email is registered, you will receive a password recovery email"
     );
+  }
+
+  public async providerRedirect({ ally, params }: HttpContextContract) {
+    const { providerName } = params;
+    return ally.use(providerName).redirect();
+  }
+
+  public async providerCallback({ auth, ally, params }: HttpContextContract) {
+    const { providerName } = params;
+
+    const provider = ally.use(providerName);
+
+    if (provider.accessDenied()) {
+      return "Access was denied";
+    }
+
+    if (provider.stateMisMatch()) {
+      return "Request expired. Retry again";
+    }
+
+    if (provider.hasError()) {
+      return provider.getError();
+    }
+
+    const providerUser = await provider.user();
+
+    let user = await User.query()
+      .where("email", providerUser.email!)
+      .orWhereHas("socials", (query) => {
+        query
+          .where("provider", providerName)
+          .andWhere("provider_id", providerUser.id);
+      })
+      .first();
+
+    if (!user) {
+      user = await User.create({
+        email: providerUser.email!,
+      });
+    }
+
+    await user.related("socials").firstOrCreate({
+      provider: providerName,
+      providerId: providerUser.id,
+    });
+
+    const token = await auth.use("api").generate(user);
+    return token;
   }
 }

@@ -23,7 +23,8 @@
     "@adonisjs/redis",
     "@adonisjs/ally",
     "@adonisjs/mail",
-    "@adonisjs/limiter"
+    "@adonisjs/limiter",
+    "@adonisjs/shield"
   ],
   "aceProviders": ["@adonisjs/repl"],
   "tests": {

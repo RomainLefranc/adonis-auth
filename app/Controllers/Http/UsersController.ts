@@ -9,6 +9,7 @@ import ResetPasswordToken from "App/Models/ResetPasswordToken";
 import crypto from "crypto";
 import { DateTime } from "luxon";
 import Mail from "@ioc:Adonis/Addons/Mail";
+import Env from "@ioc:Adonis/Core/Env";
 
 export default class UsersController {
   public async register({ request }: HttpContextContract) {
@@ -49,8 +50,13 @@ export default class UsersController {
       return response.unauthorized("Email or password invalid");
     }
 
-    const token = await auth.use("api").generate(user);
-    return token;
+    const oat = await auth.use("api").generate(user, {
+      expiresIn: "7days",
+    });
+
+    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
+
+    return response.ok(user);
   }
 
   public async verify({ params, response }: HttpContextContract) {
@@ -139,29 +145,35 @@ export default class UsersController {
     return response.accepted("If a user with this email is registered, you will receive a password recovery email");
   }
 
-  public async providerRedirect({ ally, params }: HttpContextContract) {
+  public async providerRedirect({ ally, auth, params, response }: HttpContextContract) {
     const { providerName } = params;
-    return ally.use(providerName).redirect();
+
+    if (await auth.check()) {
+      return response.notAcceptable();
+    }
+
+    return response.send(await ally.use(providerName).stateless().redirectUrl());
   }
 
-  public async providerCallback({ auth, ally, params }: HttpContextContract) {
+  public async providerCallback({ auth, ally, params, response }: HttpContextContract) {
     const { providerName } = params;
 
-    const provider = ally.use(providerName);
+    if (await auth.check()) {
+      return response.notAcceptable();
+    }
+
+    const provider = ally.use(providerName).stateless();
 
     if (provider.accessDenied()) {
       return "Access was denied";
-    }
-
-    if (provider.stateMisMatch()) {
-      return "Request expired. Retry again";
     }
 
     if (provider.hasError()) {
       return provider.getError();
     }
 
-    const providerUser = await provider.user();
+    const { token } = await provider.accessToken();
+    const providerUser = await provider.userFromToken(token);
 
     let user = await User.query()
       .where("email", providerUser.email!)
@@ -181,7 +193,12 @@ export default class UsersController {
       providerId: providerUser.id,
     });
 
-    const token = await auth.use("api").generate(user);
-    return token;
+    const oat = await auth.use("api").generate(user, {
+      expiresIn: "7days",
+    });
+
+    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
+
+    return response.ok(user);
   }
 }

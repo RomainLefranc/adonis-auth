@@ -26,4 +26,5 @@ Route.group(() => {
   authRoutes();
 })
   .prefix("api")
-  .as("api");
+  .as("api")
+  .middleware("throttle:global");

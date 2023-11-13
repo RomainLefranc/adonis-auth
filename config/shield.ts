@@ -92,7 +92,10 @@ export const csrf: ShieldConfig["csrf"] = {
   |
   */
   exceptRoutes: (ctx) => {
-    return ctx.request.url().includes("/api/");
+    if (ctx.request.url().includes("logout")) {
+      return false;
+    }
+    return true;
   },
 
   /*

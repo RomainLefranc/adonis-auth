@@ -2,15 +2,18 @@ import { DateTime } from "luxon";
 import { BaseModel, BelongsTo, belongsTo, column } from "@ioc:Adonis/Lucid/Orm";
 import User from "./User";
 
-export default class ResetPasswordToken extends BaseModel {
+export default class Token extends BaseModel {
   @column({ isPrimary: true })
   public id: number;
 
   @column()
-  public resetPasswordToken: string;
+  public token: string;
 
   @column()
   public userId: number;
+
+  @column()
+  public type: string;
 
   @belongsTo(() => User)
   public user: BelongsTo<typeof User>;
@@ -19,5 +22,5 @@ export default class ResetPasswordToken extends BaseModel {
   public createdAt: DateTime;
 
   @column.dateTime()
-  public expiresAt: DateTime;
+  public expiresAt: DateTime | null;
 }

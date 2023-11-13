@@ -38,4 +38,5 @@ export default Env.rules({
   SMTP_USERNAME: Env.schema.string(),
   SMTP_PASSWORD: Env.schema.string(),
   API_TOKEN_COOKIE_NAME: Env.schema.string(),
+  SESSION_DRIVER: Env.schema.string(),
 });

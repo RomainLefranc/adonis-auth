@@ -24,7 +24,7 @@ export default class ForgotPasswordUserValidator {
    *    ```
    */
   public schema = schema.create({
-    email: schema.string([rules.email(), rules.exists({ table: "users", column: "email" })]),
+    email: schema.string([rules.email()]),
   });
 
   /**

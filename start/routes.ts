@@ -24,7 +24,4 @@ import authRoutes from "./routes/api/auth";
 
 Route.group(() => {
   authRoutes();
-})
-  .prefix("api")
-  .as("api")
-  .middleware("throttle:global");
+}).prefix("api");

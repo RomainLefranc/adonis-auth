@@ -5,16 +5,22 @@ import User from "App/Models/User";
 import Hash from "@ioc:Adonis/Core/Hash";
 import ResetPasswordUserValidator from "App/Validators/ResetPasswordUserValidator";
 import ForgotPasswordUserValidator from "App/Validators/ForgotPasswordUserValidator";
-import ResetPasswordToken from "App/Models/ResetPasswordToken";
+import Token from "App/Models/Token";
 import crypto from "crypto";
 import { DateTime } from "luxon";
 import Mail from "@ioc:Adonis/Addons/Mail";
 import Env from "@ioc:Adonis/Core/Env";
 
 export default class UsersController {
-  public async register({ request }: HttpContextContract) {
+  public async register({ request, response }: HttpContextContract) {
     const payload = await request.validate(RegisterUserValidator);
+
     const user = await User.create(payload);
+
+    user.related("tokens").create({
+      token: crypto.randomBytes(64).toString("hex"),
+      type: "EMAIL_VERIFICATION",
+    });
 
     await Mail.use("smtp").sendLater(
       (message) => {
@@ -26,9 +32,7 @@ export default class UsersController {
       }
     );
 
-    return {
-      user,
-    };
+    return response.ok(user);
   }
 
   public async login({ auth, request, response }: HttpContextContract) {
@@ -38,21 +42,13 @@ export default class UsersController {
 
     const user = await User.query().where("email", email).first();
 
-    if (!user) {
-      return response.unauthorized("Email or password invalid");
-    }
+    if (!user) return response.unauthorized("Email or password invalid");
 
-    if (!user.isEmailVerified) {
-      return response.unauthorized("User is not verified");
-    }
+    if (!user.isEmailVerified) return response.unauthorized("User is not verified");
 
-    if (!(await Hash.verify(user.password, password))) {
-      return response.unauthorized("Email or password invalid");
-    }
+    if (!(await Hash.verify(user.password, password))) return response.unauthorized("Email or password invalid");
 
-    const oat = await auth.use("api").generate(user, {
-      expiresIn: "7days",
-    });
+    const oat = await auth.use("api").generate(user, { expiresIn: "7days" });
 
     response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
 
@@ -62,21 +58,22 @@ export default class UsersController {
   public async verify({ params, response }: HttpContextContract) {
     const { verificationToken } = params;
 
-    const user = await User.query().where("verificationToken", verificationToken).first();
+    const token = await Token.query().preload("user").where("token", verificationToken).andWhere("type", "EMAIL_VERIFICATION").first();
 
-    if (!user) {
-      return response.unauthorized("Verification token invalid");
-    }
+    if (!token) return response.unauthorized("Verification token invalid");
 
-    user.isEmailVerified = true;
-    user.verificationToken = null;
-    await user.save();
+    token.user.isEmailVerified = true;
+    await token.user.save();
+    await token.delete();
 
     return response.accepted("User is now verified");
   }
 
   public async logout({ auth, response }: HttpContextContract) {
     await auth.use("api").revoke();
+
+    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), "", { maxAge: 0, sameSite: "none", secure: true, httpOnly: true });
+
     return response.accepted("User is now disconnected");
   }
 
@@ -86,21 +83,14 @@ export default class UsersController {
 
     const { password } = payload;
 
-    const user = await User.query()
-      .whereHas("resetPasswordTokens", (query) => {
-        query.where("reset_password_token", "=", resetPasswordToken).andWhere("expires_at", ">=", DateTime.now().toSQL()!);
-      })
-      .preload("resetPasswordTokens")
-      .first();
+    const token = await Token.query().preload("user").where("token", resetPasswordToken).andWhere("expires_at", ">=", DateTime.now().toSQL()!).first();
 
-    if (!user) {
-      return response.unauthorized("Reset password token expired or invalid");
-    }
+    if (!token) return response.unauthorized("Reset password token expired or invalid");
 
-    user.password = password;
-    user.save();
+    token.user.password = password;
+    await token.user.save();
+    await token.delete();
 
-    await user.resetPasswordTokens[0].delete();
     return response.accepted("Password have been updated");
   }
 
@@ -110,26 +100,18 @@ export default class UsersController {
 
     const user = await User.query().where("email", email).first();
 
-    if (!user) {
-      return response.accepted("If a user with this email is registered, you will receive a password recovery email");
-    }
+    if (!user) return response.accepted("If a user with this email is registered, you will receive a password recovery email");
 
-    if (!user.isEmailVerified) {
-      return response.unauthorized("User is not verified");
-    }
+    if (!user.isEmailVerified) return response.unauthorized("User is not verified");
 
-    const ValidTokens = await ResetPasswordToken.query().where("expires_at", ">=", DateTime.now().toSQL()!).andWhere("user_id", user.id);
+    const ValidResetPasswordTokens = await Token.query().where("expires_at", ">=", DateTime.now().toSQL()!).andWhere("user_id", user.id).andWhere("type", "PASSWORD_RESET");
 
-    if (ValidTokens.length == 0) {
+    if (ValidResetPasswordTokens.length == 0) {
       const EXPIRATION_DELAY = 2;
-      const expirationDate = DateTime.now().plus({ hour: EXPIRATION_DELAY });
-
-      const token = crypto.randomBytes(64).toString("hex");
-
-      await ResetPasswordToken.create({
-        resetPasswordToken: token,
-        userId: user.id,
-        expiresAt: expirationDate,
+      await user.related("tokens").create({
+        token: crypto.randomBytes(64).toString("hex"),
+        expiresAt: DateTime.now().plus({ hour: EXPIRATION_DELAY }),
+        type: "PASSWORD_RESET",
       });
 
       await Mail.use("smtp").sendLater(
@@ -148,9 +130,7 @@ export default class UsersController {
   public async providerRedirect({ ally, auth, params, response }: HttpContextContract) {
     const { providerName } = params;
 
-    if (await auth.check()) {
-      return response.notAcceptable();
-    }
+    if (await auth.check()) return response.notAcceptable();
 
     return response.send(await ally.use(providerName).stateless().redirectUrl());
   }
@@ -158,19 +138,13 @@ export default class UsersController {
   public async providerCallback({ auth, ally, params, response }: HttpContextContract) {
     const { providerName } = params;
 
-    if (await auth.check()) {
-      return response.notAcceptable();
-    }
+    if (await auth.check()) return response.notAcceptable();
 
     const provider = ally.use(providerName).stateless();
 
-    if (provider.accessDenied()) {
-      return "Access was denied";
-    }
+    if (provider.accessDenied()) return "Access was denied";
 
-    if (provider.hasError()) {
-      return provider.getError();
-    }
+    if (provider.hasError()) return provider.getError();
 
     const { token } = await provider.accessToken();
     const providerUser = await provider.userFromToken(token);
@@ -193,9 +167,7 @@ export default class UsersController {
       providerId: providerUser.id,
     });
 
-    const oat = await auth.use("api").generate(user, {
-      expiresIn: "7days",
-    });
+    const oat = await auth.use("api").generate(user, { expiresIn: "7days" });
 
     response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
 

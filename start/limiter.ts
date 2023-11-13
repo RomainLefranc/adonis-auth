@@ -9,8 +9,15 @@
 |
 */
 
-import { Limiter } from '@adonisjs/limiter/build/services'
+import { Limiter } from "@adonisjs/limiter/build/services";
 
-export const { httpLimiters } = Limiter.define('global', () => {
-  return Limiter.allowRequests(100).every('1 min')
-})
+export const { httpLimiters } = Limiter
+  .define("register", () => {
+    return Limiter.allowRequests(10).every("30 min");
+  })
+  .define("login", () => {
+    return Limiter.allowRequests(10).blockFor("30 mins").every("15 mins");
+  })
+  .define("global", () => {
+    return Limiter.allowRequests(100).every("1 min");
+  });

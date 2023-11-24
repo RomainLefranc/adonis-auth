@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # adonis_app:
+  #   container_name: adonis_app
+  #   restart: always
+  #   build:
+  #     context: .
+  #     target: dependencies
+  #   ports:
+  #     - ${PORT}:${PORT}
+  #     - 9229:9229
+  #   depends_on:
+  #     - mysql
+  #     - redis
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     MYSQL_HOST : mysql
+  #     REDIS_HOST : redis
+  #   volumes:
+  #     - ./:/home/node/app
+  #     # Uncomment the below line if you developing on MacOS
+  #     #- /home/node/app/node_modules
+  #   command: dumb-init node ace serve --watch --node-args="--inspect=0.0.0.0"
+
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    env_file:
+      - .env
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD : true
+      MYSQL_DATABASE: ${MYSQL_DB_NAME}
+    volumes:
+      - mysql_volume:/var/lib/mysql
+
+  # redis:
+  #   container_name: redis
+  #   image: redis:6-alpine
+  #   volumes:
+  #     - redis_volume:/data
+  #   ports:
+  #     - 6379:6379
+
+
+volumes:
+  mysql_volume:
+  redis_volume:

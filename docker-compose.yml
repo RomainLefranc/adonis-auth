@@ -1,6 +1,6 @@
 services:
   adonis_app:
-    restart: always
+    restart: unless-stopped
     build:
       context: .
       target: dependencies
@@ -23,18 +23,20 @@ services:
 
   mysql:
     image: mysql:latest
+    restart: unless-stopped
     ports:
-      - "3306:3306"
+      - 3306:3306
     env_file:
       - .env
     environment:
-      MYSQL_RANDOM_ROOT_PASSWORD :  true
+      MYSQL_RANDOM_ROOT_PASSWORD : true
       MYSQL_DATABASE: ${MYSQL_DB_NAME}
     volumes:
       - mysql_volume:/var/lib/mysql
 
   redis:
     image: redis:6-alpine
+    restart: unless-stopped
     volumes:
       - redis_volume:/data
     ports:

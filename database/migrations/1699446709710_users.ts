@@ -1,5 +1,4 @@
 import BaseSchema from "@ioc:Adonis/Lucid/Schema";
-import crypto from "crypto";
 
 export default class extends BaseSchema {
   protected tableName = "users";

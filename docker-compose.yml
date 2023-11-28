@@ -1,11 +1,18 @@
 services:
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 80:80
+    depends_on:
+      - adonis_app
+
   adonis_app:
     restart: unless-stopped
     build:
       context: .
-      target: dependencies
     ports:
-      - ${PORT}:${PORT}
       - 9229:9229
     depends_on:
       - mysql
@@ -15,11 +22,9 @@ services:
     environment:
       - MYSQL_HOST=mysql
       - REDIS_HOST=redis
+      - NODE_ENV=production
     volumes:
       - ./:/home/node/app
-      # Uncomment the below line if you developing on MacOS
-      #- /home/node/app/node_modules
-    command: dumb-init node ace serve --watch --node-args="--inspect=0.0.0.0"
 
   mysql:
     image: mysql:latest

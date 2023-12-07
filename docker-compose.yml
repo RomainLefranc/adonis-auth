@@ -36,6 +36,8 @@ services:
     environment:
       MYSQL_RANDOM_ROOT_PASSWORD : true
       MYSQL_DATABASE: ${MYSQL_DB_NAME}
+      MYSQL_USER: romain
+      MYSQL_PASSWORD: romain
     volumes:
       - mysql_volume:/var/lib/mysql
 

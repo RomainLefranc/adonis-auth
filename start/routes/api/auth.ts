@@ -20,7 +20,10 @@ export default function authRoutes() {
       .middleware("throttle:global");
 
     Route.post("/logout", "UsersController.logout")
-      .middleware(["auth:api"]);
+      .middleware(["auth:web"]);
+    
+    Route.get("/me", "UsersController.me")
+      .middleware(["auth:web"]);
 
     Route.get("/:providerName/redirect","UsersController.providerRedirect")
       .where("providerName", /^[a-z]+$/);

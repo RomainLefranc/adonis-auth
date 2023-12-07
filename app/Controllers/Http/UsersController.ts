@@ -9,7 +9,7 @@ import Token from "App/Models/Token";
 import crypto from "crypto";
 import { DateTime } from "luxon";
 import Mail from "@ioc:Adonis/Addons/Mail";
-import Env from "@ioc:Adonis/Core/Env";
+import UserSocial from "App/Models/UserSocial";
 
 export default class UsersController {
   public async register({ request, response }: HttpContextContract) {
@@ -38,7 +38,7 @@ export default class UsersController {
   public async login({ auth, request, response }: HttpContextContract) {
     const payload = await request.validate(LoginUserValidator);
 
-    const { email, password } = payload;
+    const { email, password, rememberMe } = payload;
 
     const user = await User.query().where("email", email).first();
 
@@ -48,9 +48,7 @@ export default class UsersController {
 
     if (!(await Hash.verify(user.password, password))) return response.unauthorized("Email or password invalid");
 
-    const oat = await auth.use("api").generate(user, { expiresIn: "7days" });
-
-    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
+    await auth.use("web").login(user, rememberMe)
 
     return response.ok(user);
   }
@@ -70,9 +68,7 @@ export default class UsersController {
   }
 
   public async logout({ auth, response }: HttpContextContract) {
-    await auth.use("api").revoke();
-
-    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), "", { maxAge: 0, sameSite: "none", secure: true, httpOnly: true });
+    await auth.use('web').logout()
 
     return response.accepted("User is now disconnected");
   }
@@ -127,6 +123,13 @@ export default class UsersController {
     return response.accepted("If a user with this email is registered, you will receive a password recovery email");
   }
 
+  public async me({ response, auth }: HttpContextContract) {
+
+    return response.ok(auth.use('web').user);
+  }
+
+
+
   public async providerRedirect({ ally, auth, params, response }: HttpContextContract) {
     const { providerName } = params;
 
@@ -149,6 +152,8 @@ export default class UsersController {
     const { token } = await provider.accessToken();
     const providerUser = await provider.userFromToken(token);
 
+
+    // récuperation de l'utilisateur si il a déjà était connecté
     let user = await User.query()
       .where("email", providerUser.email!)
       .orWhereHas("socials", (query) => {
@@ -162,14 +167,17 @@ export default class UsersController {
       });
     }
 
-    await user.related("socials").firstOrCreate({
+    await UserSocial.updateOrCreate({
+      userId : user.id,
+      provider : providerName
+    },{
       provider: providerName,
       providerId: providerUser.id,
+      userId : user.id,
     });
 
-    const oat = await auth.use("api").generate(user, { expiresIn: "7days" });
 
-    response.cookie(String(Env.get("API_TOKEN_COOKIE_NAME")), oat.token, { maxAge: 60 * 60 * 24 * 7, sameSite: "none", secure: true, httpOnly: true });
+    await auth.use("web").login(user)
 
     return response.ok(user);
   }
